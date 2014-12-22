@@ -1,0 +1,20 @@
+{
+  "name": "node-ansiparser",
+  "version": "1.0.0",
+  "description": "A parser for ANSI escape codes.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ansi",
+    "parser",
+    "terminal"
+  ],
+  "author": "Joerg Breitbart <j.breitbart@netzkolchose.de>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/netzkolchose/node-ansiparser.git"
+  }
+}
