@@ -1,11 +1,8 @@
 {
   "name": "node-ansiparser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A parser for ANSI escape codes.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "main": "dist/ansiparser.js",
   "keywords": [
     "ansi",
     "parser",
@@ -16,5 +13,12 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/netzkolchose/node-ansiparser.git"
+  },
+  "devDependencies": {
+    "closurecompiler": "latest"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "minify": "ccjs ./dist/ansiparser.js --compilation_level=ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT > ./dist/ansiparser.min.js"
   }
 }
