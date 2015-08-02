@@ -1,334 +1,414 @@
-// states replacement:
-// 'GROUND' -> 'A', 0
-// 'ESCAPE' -> 'B', 1
-// 'ESCAPE_INTERMEDIATE' -> 'C', 2
-// 'CSI_ENTRY' -> 'D', 3
-// 'CSI_PARAM' -> 'E', 4
-// 'CSI_INTERMEDIATE' -> 'F', 5
-// 'CSI_IGNORE' -> 'G', 6
-// 'SOS_PM_APC_STRING' -> 'H', 7
-// 'OSC_STRING' -> 'I', 8
-// 'DCS_ENTRY' -> 'J', 9
-// 'DCS_PARAM' -> 'K', 10
-// 'DCS_IGNORE' -> 'L', 11
-// 'DCS_INTERMEDIATE' -> 'M', 12
-// 'DCS_PASSTHROUGH' -> 'N' 13
-
 (function() {
     'use strict';
 
-    // decodeNum() - create unicode character from number
-    function decodeNum(num) {
-        return String.fromCharCode(num);
-    }
-
-    // r(start, stop) - simple range macro
+    /**
+     * range function for numbers [a, .., b-1]
+     *
+     * @param {number} a
+     * @param {number} b
+     * @return {Array}
+     */
     function r(a, b) {
-        return SINGLES.slice(a, b);
+        var c = b - a;
+        var arr = new Array(c);
+        while (c--)
+            arr[c] = --b;
+        return arr;
     }
 
-    // definition of single byte chars
-    var SINGLES = new Array(256);
-    for (var i = 0; i < SINGLES.length; i++)
-        SINGLES[i] = i;
-    SINGLES = SINGLES.map(decodeNum);
+    /**
+     * Add a transition to the transition table.
+     *
+     * @param table - table to add transition
+     * @param {number} inp - input character code
+     * @param {number} state - current state
+     * @param {number=} action - action to be taken
+     * @param {number=} next - next state
+     */
+    function add(table, inp, state, action, next) {
+        table[state][inp] = [(action) ? action : 0, (next === undefined) ? state : next];
+    }
 
-    // definitation of printables and executables
+    /**
+     * Add multiple transitions to the transition table.
+     *
+     * @param table - table to add transition
+     * @param {Array} inps - array of input character codes
+     * @param {number} state - current state
+     * @param {number=} action - action to be taken
+     * @param {number=} next - next state
+     */
+    function add_list(table, inps, state, action, next) {
+        for (var i = 0; i < inps.length; i++)
+            add(table, inps[i], state, action, next);
+    }
+
+    /** global definition of printables and executables */
     var PRINTABLES = r(0x20, 0x7f);
     var EXECUTABLES = r(0x00, 0x18);
-    EXECUTABLES.push(decodeNum(0x19));
+    EXECUTABLES.push(0x19);
     EXECUTABLES.concat(r(0x1c, 0x20));
 
-    // constructor
-    function ANSIParser(terminal) {
-        // fsm stuff
-        this.state_transitions = [{},{},{},{},{},{},{},{},{},{},{},{},{},{}];
-        this.default_transition = null;
-        this.inp = null;
-        this.initial_state = 0;  // 'A' ('GROUND') is default
-        this.current_state = this.initial_state;
-        this.next_state = null;
-        this.action_ = null;
-        this.previous_state = null;
+    /**
+     * create the standard transition table - used by all parser instances
+     *     [state][character code] --> [action][next state]
+     *
+     *     - states are numbers from 0 to 13
+     *     - control character codes defined from 0 to 159 (C0 and C1)
+     *     - actions are numbers from 0 to 14
+     *     - any higher character than 159 is handled by the 'error' action
+     *
+     *     states replacement:
+     *          'GROUND' -> 0
+     *          'ESCAPE' -> 1
+     *          'ESCAPE_INTERMEDIATE' -> 2
+     *          'CSI_ENTRY' -> 3
+     *          'CSI_PARAM' -> 4
+     *          'CSI_INTERMEDIATE' -> 5
+     *          'CSI_IGNORE' -> 6
+     *          'SOS_PM_APC_STRING' -> 7
+     *          'OSC_STRING' -> 8
+     *          'DCS_ENTRY' -> 9
+     *          'DCS_PARAM' -> 10
+     *          'DCS_IGNORE' -> 11
+     *          'DCS_INTERMEDIATE' -> 12
+     *          'DCS_PASSTHROUGH' -> 13
+     *
+     *     actions replacement:
+     *          'no action' -> 0
+     *          'error' -> 1
+     *          'print' -> 2
+     *          'execute' -> 3
+     *          'osc_start' -> 4
+     *          'osc_put' -> 5
+     *          'osc_end' -> 6
+     *          'csi_dispatch' -> 7
+     *          'param' -> 8
+     *          'collect' -> 9
+     *          'esc_dispatch' -> 10
+     *          'clear' -> 11
+     *          'dcs_hook' -> 12
+     *          'dcs_put' -> 13
+     *          'dcs_unhook' -> 14
+     */
+    var TRANSITION_TABLE = (function() {
+        var table = [];
 
-        // terminal specific buffers
+        // table with default transition [any][any] --> [error, GROUND]
+        for (var state=0; state<14; ++state) {
+            var chars = [];
+            for (var code=0; code<160; ++code) {
+                chars.push([1, 0]);
+            }
+            table.push(chars);
+        }
+
+        // apply transitions
+        // printables
+        add_list(table, PRINTABLES, 0, 2);
+        // global anywhere rules
+        for (state=0; state<14; ++state) {
+            add_list(table, [0x18, 0x1a, 0x99, 0x9a], state, 3, 0);
+            add_list(table, r(0x80, 0x90), state, 3, 0);
+            add_list(table, r(0x90, 0x98), state, 3, 0);
+            add(table, 0x9c, state, 0, 0);   // ST as terminator
+            add(table, 0x1b, state, 11, 1);  // ESC
+            add(table, 0x9d, state, 4, 8);   // OSC
+            add_list(table, [0x98, 0x9e, 0x9f], state, 0, 7);
+            add(table, 0x9b, state, 11, 3);  // CSI
+            add(table, 0x90, state, 11, 9);  // DCS
+        }
+        // rules for executables and 7f
+        add_list(table, EXECUTABLES, 0, 3);
+        add_list(table, EXECUTABLES, 1, 3);
+        add(table, 0x7f, 1);
+        add_list(table, EXECUTABLES, 8);
+        add_list(table, EXECUTABLES, 3, 3);
+        add(table, 0x7f, 3);
+        add_list(table, EXECUTABLES, 4, 3);
+        add(table, 0x7f, 4);
+        add_list(table, EXECUTABLES, 6, 3);
+        add_list(table, EXECUTABLES, 5, 3);
+        add(table, 0x7f, 5);
+        add_list(table, EXECUTABLES, 2, 3);
+        add(table, 0x7f, 2);
+        // osc
+        add(table, 0x5d, 1, 4, 8);
+        add_list(table, PRINTABLES, 8, 5);
+        add_list(table, [0x9c, 0x1b, 0x18, 0x1a, 0x07], 8, 6, 0);
+        // sos/pm/apc does nothing
+        add_list(table, [0x58, 0x5e, 0x5f], 1, 0, 7);
+        add_list(table, PRINTABLES, 7);
+        add_list(table, EXECUTABLES, 7);
+        add(table, 0x9c, 7, 0, 0);
+        // csi entries
+        add(table, 0x5b, 1, 11, 3);
+        add_list(table, r(0x40, 0x7f), 3, 7, 0);
+        add_list(table, r(0x30, 0x3a), 3, 8, 4);
+        add(table, 0x3b, 3, 8, 4);
+        add_list(table, [0x3c, 0x3d, 0x3e, 0x3f], 3, 9, 4);
+        add_list(table, r(0x30, 0x3a), 4, 8);
+        add(table, 0x3b, 4, 8);
+        add_list(table, r(0x40, 0x7f), 4, 7, 0);
+        add_list(table, [0x3a, 0x3c, 0x3d, 0x3e, 0x3f], 4, 0, 6);
+        add_list(table, r(0x20, 0x40), 6);
+        add(table, 0x7f, 6);
+        add_list(table, r(0x40, 0x7f), 6, 0, 0);
+        add(table, 0x3a, 3, 0, 6);
+        add_list(table, r(0x20, 0x30), 3, 9, 5);
+        add_list(table, r(0x20, 0x30), 5, 9);
+        add_list(table, r(0x30, 0x40), 5, 0, 6);
+        add_list(table, r(0x40, 0x7f), 5, 7, 0);
+        add_list(table, r(0x20, 0x30), 4, 9, 5);
+        // esc_intermediate
+        add_list(table, r(0x20, 0x30), 1, 9, 2);
+        add_list(table, r(0x20, 0x30), 2, 9);
+        add_list(table, r(0x30, 0x7f), 2, 10, 0);
+        add_list(table, r(0x30, 0x50), 1, 10, 0);
+        add_list(table, [0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x59, 0x5a, 0x5c], 1, 10, 0);
+        add_list(table, r(0x60, 0x7f), 1, 10, 0);
+        // dcs entry
+        add(table, 0x50, 1, 11, 9);
+        add_list(table, EXECUTABLES, 9);
+        add(table, 0x7f, 9);
+        add_list(table, r(0x20, 0x30), 9, 9, 12);
+        add(table, 0x3a, 9, 0, 11);
+        add_list(table, r(0x30, 0x3a), 9, 8, 10);
+        add(table, 0x3b, 9, 8, 10);
+        add_list(table, [0x3c, 0x3d, 0x3e, 0x3f], 9, 9, 10);
+        add_list(table, EXECUTABLES, 11);
+        add_list(table, r(0x20, 0x80), 11);
+        add_list(table, EXECUTABLES, 10);
+        add(table, 0x7f, 10);
+        add_list(table, r(0x30, 0x3a), 10, 8);
+        add(table, 0x3b, 10, 8);
+        add_list(table, [0x3a, 0x3c, 0x3d, 0x3e, 0x3f], 10, 0, 11);
+        add_list(table, r(0x20, 0x30), 10, 9, 12);
+        add_list(table, EXECUTABLES, 12);
+        add(table, 0x7f, 12);
+        add_list(table, r(0x20, 0x30), 12, 9);
+        add_list(table, r(0x30, 0x40), 12, 0, 11);
+        add_list(table, r(0x40, 0x7f), 12, 12, 13);
+        add_list(table, r(0x40, 0x7f), 10, 12, 13);
+        add_list(table, r(0x40, 0x7f), 9, 12, 13);
+        add_list(table, EXECUTABLES, 13, 13);
+        add_list(table, PRINTABLES, 13, 13);
+        add(table, 0x7f, 13);
+        add_list(table, [0x1b, 0x9c], 13, 14, 0);
+
+        return table;
+    })();
+
+    /**
+     * helper for param conversion
+     * @param {string} params - params string with ;
+     * @return {Array}
+     */
+    function parse_params(params) {
+        // params are separated by ';'
+        // 16 integer params max allowed
+        // empty defaults to 0
+        return params.split(';').slice(0, 16).map(
+            function (el) {return (el) ? parseInt(el, 10) : 0});
+    }
+
+
+    /**
+     *  AnsiParser - Parser for ANSI terminal escape sequences.
+     *
+     * @param {Object=} terminal
+     * @constructor
+     */
+    function AnsiParser(terminal) {
+        this.initial_state = 0;  // 'GROUND' is default
+        this.current_state = this.initial_state;
+
+        // global non pushable buffers for multiple parse invocations
         this.osc = '';
-        this.printed = '';
         this.params = '';
         this.collected = '';
-        this.dcs = '';
-        this.STATES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
-        // backreference to terminal
+        // back reference to terminal
         this.term = terminal || {};
         var instructions = ['inst_p', 'inst_o', 'inst_x', 'inst_c',
             'inst_e', 'inst_H', 'inst_P', 'inst_U'];
         for (var i=0; i<instructions.length; ++i)
             if (!(instructions[i] in this.term)) {
-                this.term[instructions[i]] = function () {
+                this.term[instructions[i]] = function() {
                 };
             }
 
-        // finally init all transitions
-        this.init();
+        this.reset();
     }
 
-    ANSIParser.prototype.reset = function () {
+    /**
+     * Reset the parser.
+     */
+    AnsiParser.prototype.reset = function() {
         this.current_state = this.initial_state;
-        this.inp = null;
         this.osc = '';
-        this.printed = '';
         this.params = '';
         this.collected = '';
-        this.dcs = '';
-    };
-    ANSIParser.prototype.add_transition = function (inp, state, action, next) {
-        if (next === undefined)
-            next = state;
-        this.state_transitions[state][inp] = [action, next];
-    };
-    ANSIParser.prototype.add_transition_list = function (inps, state, action, next) {
-        if (next === undefined)
-            next = state;
-        for (var i = 0; i < inps.length; i++)
-            this.add_transition(inps[i], state, action, next);
-    };
-    ANSIParser.prototype.set_default_transition = function (action, next) {
-        this.default_transition = [action, next];
-    };
-    ANSIParser.prototype.process = function (inp) {
-        this.inp = inp;
-        var transition = this.state_transitions[this.current_state][inp] || this.default_transition;
-        this.action_ = transition[0];
-        this.next_state = transition[1];
-        if (this.action_)
-            this.action_();
-        this.previous_state = this.current_state;
-        this.current_state = this.next_state;
-        this.next_state = null;
     };
 
-    ANSIParser.prototype.get_params = function () {
-        // params are separated by ';'
-        // 16 integer params max allowed
-        // empty defaults to 0
-        return this.params.split(';').slice(0, 16).map(
-            function (el) {
-                if (!el)
-                    return 0;
-                return parseInt(el, 10);
-            });
-    };
-    ANSIParser.prototype.error_ = function () {
-        // handle high unicode chars according to state
-        if (this.inp > '\u009f') {
-            switch (this.current_state) {
-                case 0:
-                    this.print_();
-                    return;
-                case 8:
-                    this.osc_put();
-                    this.next_state = 8;
-                    return;
-                case 6:
-                    this.next_state = 6;
-                    return;
-                case 11:
-                    this.next_state = 11;
-                    return;
-                case 13:
-                    this.dcs_put();
-                    this.next_state = 13;
-                    return;
+    /**
+     * Parse string s.
+     * @param {string} s
+     */
+    AnsiParser.prototype.parse = function(s) {
+        var c, code, transition, action, next_state;
+        var current_state = this.current_state;
+
+        // local buffers
+        var printed = '';
+        var dcs = '';
+        var osc = this.osc;
+        var collected = this.collected;
+        var params = this.params;
+
+        // process input string
+        for (var i=0; i< s.length; ++i) {
+            c = s.charAt(i);
+            code = c.charCodeAt(0);
+            transition = TRANSITION_TABLE[current_state][code] || [1, 0];
+            action = transition[0];
+            next_state = transition[1];
+            switch (action) {
+                case 0: // no action
+                    break;
+                case 1: // error
+                    // handle high unicode chars in write buffers w'o state change
+                    if (code > 0x9f) {
+                        switch (current_state) {
+                            case 0: // GROUND -> add char to print string
+                                printed += c;
+                                break;
+                            case 8: // OSC_STRING -> add char to osc string
+                                osc += c;
+                                next_state = 8;
+                                break;
+                            case 6: // CSI_IGNORE -> ignore char
+                                next_state = 6;
+                                break;
+                            case 11: // DCS_IGNORE -> ignore char
+                                next_state = 11;
+                                break;
+                            case 13: // DCS_PASSTHROUGH -> add char to dcs string
+                                dcs += c;
+                                next_state = 13;
+                                break;
+                        }
+                    }
+                    break;
+                case 2: // print
+                    printed += c;
+                    break;
+                case 3: // execute
+                    if (printed !== '') {
+                        this.term['inst_p'](printed);
+                        printed = '';
+                    }
+                    this.term['inst_x'](c);
+                    break;
+                case 7: // csi_dispatch
+                    this.term['inst_c'](collected, parse_params(params), c);
+                    break;
+                case 8: // param
+                    params += c;
+                    break;
+                case 9: // collect
+                    collected += c;
+                    break;
+                case 10: // esc_dispatch
+                    this.term['inst_e'](collected, c);
+                    break;
+                case 11: // clear
+                    osc = '';
+                    params = '';
+                    collected = '';
+                    dcs = '';
+                    if (printed !== '') {
+                        this.term['inst_p'](printed);
+                        printed = '';
+                    }
+                    break;
+                case 4: // osc_start
+                    if (printed !== '') {
+                        this.term['inst_p'](printed);
+                        printed = '';
+                    }
+                    break;
+                case 5: // osc_put
+                    osc += c;
+                    break;
+                case 6: // osc_end
+                    this.term['inst_o'](osc);
+                    if (code == 0x1b) {
+                        osc = '';
+                        params = '';
+                        collected = '';
+                        dcs = '';
+                        if (printed !== '') {
+                            this.term['inst_p'](printed);
+                            printed = '';
+                        }
+                        next_state = 1;
+                    }
+                    break;
+                case 12: // dcs_hook
+                    this.term['inst_H'](collected, parse_params(params), c);
+                    break;
+                case 13: // dcs_put
+                    dcs += c;
+                    break;
+                case 14: // dcs_unhook
+                    if (dcs !== '') {
+                        this.term['inst_P'](dcs);
+                        dcs = '';
+                    }
+                    this.term['inst_U']();
+                    if (code == 0x1b) {
+                        osc = '';
+                        params = '';
+                        collected = '';
+                        dcs = '';
+                        if (printed !== '') {
+                            this.term['inst_p'](printed);
+                            printed = '';
+                        }
+                        next_state = 1;
+                    }
+                    break;
             }
-            console.error('ANSIParser: unkown symbol (' + this.inp + ') in state (' + this.current_state + ')');
+            current_state = next_state;
         }
-    };
-    ANSIParser.prototype.print_ = function () {
-        this.printed += this.inp;
-    };
-    ANSIParser.prototype.execute = function () {
-        if (this.printed !== '') {
-            this.term['inst_p'](this.printed);
-            this.printed = '';
+
+        // push leftover pushable buffers to screen
+        if (printed !== '') {
+            this.term['inst_p'](printed);
+        } else if ((dcs !== '') && (current_state == 13)) {
+            this.term['inst_P'](dcs);
         }
-        this.term['inst_x'](this.inp);
-    };
-    ANSIParser.prototype.osc_start = function () {
-        if (this.printed !== '') {
-            this.term['inst_p'](this.printed);
-            this.printed = '';
-        }
-    };
-    ANSIParser.prototype.osc_put = function () {
-        this.osc += this.inp;
-    };
-    ANSIParser.prototype.osc_end = function () {
-        this.term['inst_o'](this.osc);
-        if (this.inp == '\u001b') {
-            this.clear_();
-            this.next_state = 1;
-        }
-    };
-    ANSIParser.prototype.csi_dispatch = function () {
-        this.term['inst_c'](this.collected, this.get_params(), this.inp);
-    };
-    ANSIParser.prototype.param = function () {
-        this.params += this.inp;
-    };
-    ANSIParser.prototype.collect = function () {
-        this.collected += this.inp;
-    };
-    ANSIParser.prototype.esc_dispatch = function () {
-        this.term['inst_e'](this.collected, this.inp);
-    };
-    ANSIParser.prototype.clear_ = function () {
-        this.osc = '';
-        this.params = '';
-        this.collected = '';
-        this.dcs = '';
-        this.dcs_flag = '';
-        if (this.printed !== '') {
-            this.term['inst_p'](this.printed);
-            this.printed = '';
-        }
-    };
-    ANSIParser.prototype.dcs_hook = function () {
-        this.term['inst_H'](this.collected, this.get_params(), this.dcs_flag);
-    };
-    ANSIParser.prototype.dcs_put = function () {
-        this.dcs += this.inp;
-    };
-    ANSIParser.prototype.dcs_unhook = function () {
-        if (this.dcs !== '') {
-            this.term['inst_P'](this.dcs);
-            this.dcs = '';
-        }
-        this.term['inst_U']();
-        if (this.inp == '\u001b') {
-            this.clear_();
-            this.next_state = 1;
-        }
+
+        // save non pushable buffers
+        this.osc = osc;
+        this.collected = collected;
+        this.params = params;
+
+        // save state
+        this.current_state = current_state;
     };
 
-    ANSIParser.prototype.parse = function (s) {
-        // process chars
-        for (var i = 0; i < s.length; i++)
-            this.process(s.charAt(i));
-        // push leftover buffers to screen
-        if (this.printed !== '') {
-            this.term['inst_p'](this.printed);
-            this.printed = '';
-        } else if ((this.dcs !== '') && (this.current_state == 13)) {
-            this.term['inst_P'](this.dcs);
-            this.dcs = '';
-        }
-    };
-
-    ANSIParser.prototype.init = function () {
-        this.set_default_transition(this.error_, 0);
-        this.add_transition_list(PRINTABLES, 0, this.print_);
-        // global anywhere rules
-        for (var i = 0; i < this.STATES.length; i++) {
-            this.add_transition_list(['\u0018', '\u001a', '\u0099', '\u009a'], this.STATES[i], this.execute, 0);
-            this.add_transition_list(r(0x80, 0x90), this.STATES[i], this.execute, 0);
-            this.add_transition_list(r(0x90, 0x98), this.STATES[i], this.execute, 0);
-            this.add_transition('\u009c', this.STATES[i], null, 0);  // ST as terminator
-            this.add_transition('\u001b', this.STATES[i], this.clear_, 1);  // ESC
-            this.add_transition('\u009d', this.STATES[i], this.osc_start, 8);  // OSC
-            this.add_transition_list(['\u0098\u009e\u009f'], this.STATES[i], null, 7);
-            this.add_transition('\u009b', this.STATES[i], this.clear_, 3);  // CSI
-            this.add_transition('\u0090', this.STATES[i], this.clear_, 9);  // DCS
-        }
-        // rules for executables and 7f
-        this.add_transition_list(EXECUTABLES, 0, this.execute);
-        this.add_transition_list(EXECUTABLES, 1, this.execute);
-        this.add_transition('\u007f', 1);
-        this.add_transition_list(EXECUTABLES, 8);
-        this.add_transition_list(EXECUTABLES, 3, this.execute);
-        this.add_transition('\u007f', 3);
-        this.add_transition_list(EXECUTABLES, 4, this.execute);
-        this.add_transition('\u007f', 4);
-        this.add_transition_list(EXECUTABLES, 6, this.execute);
-        this.add_transition_list(EXECUTABLES, 5, this.execute);
-        this.add_transition('\u007f', 5);
-        this.add_transition_list(EXECUTABLES, 2, this.execute);
-        this.add_transition('\u007f', 2);
-        // osc
-        this.add_transition('\u005d', 1, this.osc_start, 8);
-        this.add_transition_list(PRINTABLES, 8, this.osc_put);
-        this.add_transition_list(['\u009c', '\u001b', '\u0018', '\u001a', '\u0007'], 8, this.osc_end, 0);
-        // sos/pm/apc does really nothing for now
-        this.add_transition_list(['\u0058', '\u005e', '\u005f'], 1, null, 7);
-        this.add_transition_list(PRINTABLES, 7);
-        this.add_transition_list(EXECUTABLES, 7);
-        this.add_transition('\u009c', 7, null, 0);
-        // csi entries
-        this.add_transition('\u005b', 1, this.clear_, 3);
-        this.add_transition_list(r(0x40, 0x7f), 3, this.csi_dispatch, 0);
-        this.add_transition_list(r(0x30, 0x3a), 3, this.param, 4);
-        this.add_transition('\u003b', 3, this.param, 4);
-        this.add_transition_list(['\u003c', '\u003d', '\u003e', '\u003f'], 3, this.collect, 4);
-        this.add_transition_list(r(0x30, 0x3a), 4, this.param);
-        this.add_transition('\u003b', 4, this.param);
-        this.add_transition_list(r(0x40, 0x7f), 4, this.csi_dispatch, 0);
-        this.add_transition_list(['\u003a', '\u003c', '\u003d', '\u003e', '\u003f'], 4, null, 6);
-        this.add_transition_list(r(0x20, 0x40), 6);
-        this.add_transition('\u007f', 6);
-        this.add_transition_list(r(0x40, 0x7f), 6, null, 0);
-        this.add_transition('\u003a', 3, null, 6);
-        this.add_transition_list(r(0x20, 0x30), 3, this.collect, 5);
-        this.add_transition_list(r(0x20, 0x30), 5, this.collect);
-        this.add_transition_list(r(0x30, 0x40), 5, null, 6);
-        this.add_transition_list(r(0x40, 0x7f), 5, this.csi_dispatch, 0);
-        this.add_transition_list(r(0x20, 0x30), 4, this.collect, 5);
-        // esc_intermediate
-        this.add_transition_list(r(0x20, 0x30), 1, this.collect, 2);
-        this.add_transition_list(r(0x20, 0x30), 2, this.collect);
-        this.add_transition_list(r(0x30, 0x7f), 2, this.esc_dispatch, 0);
-        this.add_transition_list(r(0x30, 0x50), 1, this.esc_dispatch, 0);
-        this.add_transition_list(['\u0051', '\u0052', '\u0053', '\u0054', '\u0055', '\u0056',
-            '\u0057', '\u0059', '\u005a', '\u005c'], 1, this.esc_dispatch, 0);
-        this.add_transition_list(r(0x60, 0x7f), 1, this.esc_dispatch, 0);
-        // dcs entry
-        this.add_transition('\u0050', 1, this.clear_, 9);
-        this.add_transition_list(EXECUTABLES, 9);
-        this.add_transition('\u007f', 9);
-        this.add_transition_list(r(0x20, 0x30), 9, this.collect, 12);
-        this.add_transition('\u003a', 9, null, 11);
-        this.add_transition_list(r(0x30, 0x3a), 9, this.param, 10);
-        this.add_transition('\u003b', 9, this.param, 10);
-        this.add_transition_list(['\u003c', '\u003d', '\u003e', '\u003f'], 9, this.collect, 10);
-        this.add_transition_list(EXECUTABLES, 11);
-        this.add_transition_list(r(0x20, 0x80), 11);
-        this.add_transition_list(EXECUTABLES, 10);
-        this.add_transition('\u007f', 10);
-        this.add_transition_list(r(0x30, 0x3a), 10, this.param);
-        this.add_transition('\u003b', 10, this.param);
-        this.add_transition_list(['\u003a', '\u003c', '\u003d', '\u003e', '\u003f'], 10, null, 11);
-        this.add_transition_list(r(0x20, 0x30), 10, this.collect, 12);
-        this.add_transition_list(EXECUTABLES, 12);
-        this.add_transition('\u007f', 12);
-        this.add_transition_list(r(0x20, 0x30), 12, this.collect);
-        this.add_transition_list(r(0x30, 0x40), 12, null, 11);
-        this.add_transition_list(r(0x40, 0x7f), 12, this.dcs_hook, 13);
-        this.add_transition_list(r(0x40, 0x7f), 10, this.dcs_hook, 13);
-        this.add_transition_list(r(0x40, 0x7f), 9, this.dcs_hook, 13);
-        this.add_transition_list(EXECUTABLES, 13, this.dcs_put);
-        this.add_transition_list(PRINTABLES, 13, this.dcs_put);
-        this.add_transition('\u007f', 13);
-        this.add_transition_list(['\u001b', '\u009c'], 13, this.dcs_unhook, 0);
-    };
 
     if (typeof module !== 'undefined' && typeof module['exports'] !== 'undefined') {
-        module['exports'] = ANSIParser;
+        module['exports'] = AnsiParser;
     } else {
         if (typeof define === 'function' && define['amd']) {
             define([], function() {
-                return ANSIParser;
+                return AnsiParser;
             });
         } else {
-            window['AnsiParser'] = ANSIParser;
+            window['AnsiParser'] = AnsiParser;
         }
     }
 })();

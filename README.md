@@ -25,15 +25,22 @@ Methods a terminal should implement:
 ## Usage example
 This example uses a simple terminal object, which just logs the actions:
 ```javascript
+var AnsiParser = require('node-ansiparser');
+
 var terminal = {
     inst_p: function(s) {console.log('print', s);},
     inst_o: function(s) {console.log('osc', s);},
     inst_x: function(flag) {console.log('execute', flag.charCodeAt(0));},
     inst_c: function(collected, params, flag) {console.log('csi', collected, params, flag);},
-    inst_e: function(collected, flag) {console.log('esc', collected, flag);}
+    inst_e: function(collected, flag) {console.log('esc', collected, flag);},
+    inst_H: function(collected, params, flag) {console.log('dcs-Hook', collected, params, flag);},
+    inst_P: function(dcs) {console.log('dcs-Put', dcs);},
+    inst_U: function() {console.log('dcs-Unhook');}
 };
-var AnsiParser = require('node-ansiparser');
+
+
 var parser = new AnsiParser(terminal);
 parser.parse('\x1b[31mHello World!\n');
+parser.parse('\x1bP0!u%5\x1b\'');
 ```
-For a more complex terminal see node-ansiterminal.
+For a more complex terminal see [node-ansiterminal](https://github.com/netzkolchose/node-ansiterminal).
