@@ -1,6 +1,6 @@
 {
   "name": "node-ansiparser",
-  "version": "2.0.0-beta",
+  "version": "2.0.0",
   "description": "A parser for ANSI escape codes.",
   "main": "dist/ansiparser.js",
   "keywords": [
@@ -15,10 +15,12 @@
     "url": "https://github.com/netzkolchose/node-ansiparser.git"
   },
   "devDependencies": {
-    "uglify-js": "2.4.24"
+    "uglify-js": "2.4.24",
+    "mocha": "latest",
+    "chai": "3.2.0"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha test",
     "minify": "node_modules/uglify-js/bin/uglifyjs --compress --mangle -- dist/ansiparser.js > dist/ansiparser.min.js"
   }
 }

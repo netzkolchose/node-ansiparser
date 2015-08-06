@@ -135,7 +135,9 @@
         // osc
         add(table, 0x5d, 1, 4, 8);
         add_list(table, PRINTABLES, 8, 5);
+        add(table, 0x7f, 8, 5);
         add_list(table, [0x9c, 0x1b, 0x18, 0x1a, 0x07], 8, 6, 0);
+        add_list(table, r(0x1c, 0x20), 8, 0);
         // sos/pm/apc does nothing
         add_list(table, [0x58, 0x5e, 0x5f], 1, 0, 7);
         add_list(table, PRINTABLES, 7);
@@ -171,6 +173,7 @@
         add(table, 0x50, 1, 11, 9);
         add_list(table, EXECUTABLES, 9);
         add(table, 0x7f, 9);
+        add_list(table, r(0x1c, 0x20), 9);
         add_list(table, r(0x20, 0x30), 9, 9, 12);
         add(table, 0x3a, 9, 0, 11);
         add_list(table, r(0x30, 0x3a), 9, 8, 10);
@@ -178,14 +181,17 @@
         add_list(table, [0x3c, 0x3d, 0x3e, 0x3f], 9, 9, 10);
         add_list(table, EXECUTABLES, 11);
         add_list(table, r(0x20, 0x80), 11);
+        add_list(table, r(0x1c, 0x20), 11);
         add_list(table, EXECUTABLES, 10);
         add(table, 0x7f, 10);
+        add_list(table, r(0x1c, 0x20), 10);
         add_list(table, r(0x30, 0x3a), 10, 8);
         add(table, 0x3b, 10, 8);
         add_list(table, [0x3a, 0x3c, 0x3d, 0x3e, 0x3f], 10, 0, 11);
         add_list(table, r(0x20, 0x30), 10, 9, 12);
         add_list(table, EXECUTABLES, 12);
         add(table, 0x7f, 12);
+        add_list(table, r(0x1c, 0x20), 12);
         add_list(table, r(0x20, 0x30), 12, 9);
         add_list(table, r(0x30, 0x40), 12, 0, 11);
         add_list(table, r(0x40, 0x7f), 12, 12, 13);
@@ -237,8 +243,6 @@
                 this.term[instructions[i]] = function() {
                 };
             }
-
-        this.reset();
     }
 
     /**
@@ -337,21 +341,17 @@
                         this.term['inst_p'](printed);
                         printed = '';
                     }
+                    osc = '';
                     break;
                 case 5: // osc_put
                     osc += c;
                     break;
                 case 6: // osc_end
-                    this.term['inst_o'](osc);
+                    if (osc && code!=0x18 && code!=0x1a) {
+                        this.term['inst_o'](osc);
+                    }
                     if (code == 0x1b) {
                         osc = '';
-                        params = '';
-                        collected = '';
-                        dcs = '';
-                        if (printed !== '') {
-                            this.term['inst_p'](printed);
-                            printed = '';
-                        }
                         next_state = 1;
                     }
                     break;
