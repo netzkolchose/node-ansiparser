@@ -1,5 +1,4 @@
 var chai = require('chai');
-
 var AnsiParser = require('../dist/ansiparser.js');
 
 function r(a, b) {
@@ -46,7 +45,20 @@ var test_terminal = {
 
 var parser = new AnsiParser(test_terminal);
 
-describe('callbacks and state reset', function() {
+describe('Parser init and methods', function() {
+    it('parser init', function () {
+        var p = new AnsiParser();
+        chai.expect(p.term).be.a('object');
+        chai.expect(p.term.inst_p).be.a('function');
+        chai.expect(p.term.inst_o).be.a('function');
+        chai.expect(p.term.inst_x).be.a('function');
+        chai.expect(p.term.inst_c).be.a('function');
+        chai.expect(p.term.inst_e).be.a('function');
+        chai.expect(p.term.inst_H).be.a('function');
+        chai.expect(p.term.inst_P).be.a('function');
+        chai.expect(p.term.inst_U).be.a('function');
+        p.parse('\x1b[31mHello World!');
+    });
     it('terminal callbacks', function () {
         chai.expect(parser.term).equal(test_terminal);
         chai.expect(parser.term.inst_p).equal(test_terminal.inst_p);
@@ -145,11 +157,9 @@ describe('state transitions and actions', function() {
             parser.collected = '#';
             parser.parse('\x1b');
             chai.expect(parser.current_state).equal(1);
-            if (state != 8) {  // we need ESC\ in OSC to work
-                chai.expect(parser.osc).equal('');
-                chai.expect(parser.params).equal('');
-                chai.expect(parser.collected).equal('');
-            }
+            chai.expect(parser.osc).equal('');
+            chai.expect(parser.params).equal('');
+            chai.expect(parser.collected).equal('');
             parser.reset();
         }
     });
@@ -845,19 +855,105 @@ function test(s, value, no_reset) {
     test_terminal.compare(value);
 }
 
-describe('escape codes examples', function() {
-    it('CSI', function () {
-        test('\x1b[<31;5m', [['csi', '<', [31, 5], 'm']]);
+describe('escape sequence examples', function() {
+    it('CSI with print and execute', function () {
+        test('\x1b[<31;5mHello World! öäü€\nabc', [
+            ['csi', '<', [31, 5], 'm'],
+            ['print', 'Hello World! öäü€'],
+            ['exe', '\n'],
+            ['print', 'abc']
+        ]);
     });
     it('OSC', function () {
-        test('\x1b]0;abc123€öäü\x07', [['osc', '0;abc123€öäü']]);
+        test('\x1b]0;abc123€öäü\x07', [
+            ['osc', '0;abc123€öäü']
+        ]);
     });
     it('single DCS', function () {
-        test('\x1bP1;2;3+$abc;de\x9c', [['dcs hook', '+$', [1, 2, 3], 'a'], ['dcs put', 'bc;de'], ['dcs unhook']]);
+        test('\x1bP1;2;3+$abc;de\x9c', [
+            ['dcs hook', '+$', [1, 2, 3], 'a'],
+            ['dcs put', 'bc;de'],
+            ['dcs unhook']
+        ]);
     });
     it('multi DCS', function () {
-        test('\x1bP1;2;3+$abc;de', [['dcs hook', '+$', [1, 2, 3], 'a'], ['dcs put', 'bc;de']]);
+        test('\x1bP1;2;3+$abc;de', [
+            ['dcs hook', '+$', [1, 2, 3], 'a'],
+            ['dcs put', 'bc;de']
+        ]);
         test_terminal.clear();
-        test('abc\x9c', [['dcs put', 'abc'], ['dcs unhook']], true);
+        test('abc\x9c', [
+            ['dcs put', 'abc'],
+            ['dcs unhook']
+        ], true);
+    });
+    it('print + DCS(C1)', function () {
+        test('abc\x901;2;3+$abc;de\x9c', [
+            ['print', 'abc'],
+            ['dcs hook', '+$', [1, 2, 3], 'a'],
+            ['dcs put', 'bc;de'],
+            ['dcs unhook']
+        ]);
+    });
+    it('print + PM(C1) + print', function () {
+        test('abc\x98123tzf\x9cdefg', [
+            ['print', 'abcdefg']
+        ]);
+    });
+    it('print + OSC(C1) + print', function () {
+        test('abc\x9d123tzf\x9cdefg', [
+            ['print', 'abc'],
+            ['osc', '123tzf'],
+            ['print', 'defg']
+        ]);
+    });
+    it('error recovery', function () {
+        test('\x1b[1€abcdefg\x9b<;c', [
+            ['print', 'abcdefg'],
+            ['csi', '<', [0, 0], 'c']
+        ]);
+    });
+});
+
+describe('coverage tests', function() {
+    it('CSI_IGNORE error', function () {
+        parser.reset();
+        test_terminal.clear();
+        parser.current_state = 6;
+        parser.parse('€öäü');
+        chai.expect(parser.current_state).equal(6);
+        test_terminal.compare([]);
+        parser.reset();
+        test_terminal.clear();
+    });
+    it('DCS_IGNORE error', function () {
+        parser.reset();
+        test_terminal.clear();
+        parser.current_state = 11;
+        parser.parse('€öäü');
+        chai.expect(parser.current_state).equal(11);
+        test_terminal.compare([]);
+        parser.reset();
+        test_terminal.clear();
+    });
+    it('DCS_PASSTHROUGH error', function () {
+        parser.reset();
+        test_terminal.clear();
+        parser.current_state = 13;
+        parser.parse('€öäü');
+        chai.expect(parser.current_state).equal(13);
+        test_terminal.compare([['dcs put', '€öäü']]);
+        parser.reset();
+        test_terminal.clear();
+    });
+    it('error else of if (code > 159)', function () {
+        parser.reset();
+        test_terminal.clear();
+        parser.current_state = 0;
+        parser.parse('\x1e');
+        chai.expect(parser.current_state).equal(0);
+        test_terminal.compare([]);
+        parser.reset();
+        test_terminal.clear();
     });
 });

@@ -239,10 +239,8 @@
         var instructions = ['inst_p', 'inst_o', 'inst_x', 'inst_c',
             'inst_e', 'inst_H', 'inst_P', 'inst_U'];
         for (var i=0; i<instructions.length; ++i)
-            if (!(instructions[i] in this.term)) {
-                this.term[instructions[i]] = function() {
-                };
-            }
+            if (!(instructions[i] in this.term))
+                this.term[instructions[i]] = function() {};
     }
 
     /**
@@ -281,6 +279,7 @@
                 case 0: // no action
                     break;
                 case 1: // error
+                    // NOTE: real error recovery is not implemented
                     // handle high unicode chars in write buffers w'o state change
                     if (code > 0x9f) {
                         switch (current_state) {
@@ -308,14 +307,13 @@
                     printed += c;
                     break;
                 case 3: // execute
-                    if (printed !== '') {
-                        this.term['inst_p'](printed);
-                        printed = '';
-                    }
-                    this.term['inst_x'](c);
+                    if (printed)
+                        this.term.inst_p(printed);
+                    printed = '';
+                    this.term.inst_x(c);
                     break;
                 case 7: // csi_dispatch
-                    this.term['inst_c'](collected, parse_params(params), c);
+                    this.term.inst_c(collected, parse_params(params), c);
                     break;
                 case 8: // param
                     params += c;
@@ -324,70 +322,63 @@
                     collected += c;
                     break;
                 case 10: // esc_dispatch
-                    this.term['inst_e'](collected, c);
+                    this.term.inst_e(collected, c);
                     break;
                 case 11: // clear
+                    if (printed)
+                        this.term.inst_p(printed);
+                    printed = '';
                     osc = '';
                     params = '';
                     collected = '';
                     dcs = '';
-                    if (printed !== '') {
-                        this.term['inst_p'](printed);
-                        printed = '';
-                    }
                     break;
                 case 4: // osc_start
-                    if (printed !== '') {
-                        this.term['inst_p'](printed);
-                        printed = '';
-                    }
+                    if (printed)
+                        this.term.inst_p(printed);
+                    printed = '';
                     osc = '';
                     break;
                 case 5: // osc_put
                     osc += c;
                     break;
                 case 6: // osc_end
-                    if (osc && code!=0x18 && code!=0x1a) {
-                        this.term['inst_o'](osc);
-                    }
-                    if (code == 0x1b) {
-                        osc = '';
+                    if (osc && code!=0x18 && code!=0x1a)
+                        this.term.inst_o(osc);
+                    if (code == 0x1b)
                         next_state = 1;
-                    }
+                    osc = '';
+                    params = '';
+                    collected = '';
+                    dcs = '';
                     break;
                 case 12: // dcs_hook
-                    this.term['inst_H'](collected, parse_params(params), c);
+                    this.term.inst_H(collected, parse_params(params), c);
                     break;
                 case 13: // dcs_put
                     dcs += c;
                     break;
                 case 14: // dcs_unhook
-                    if (dcs !== '') {
-                        this.term['inst_P'](dcs);
-                        dcs = '';
+                    if (dcs) {
+                        this.term.inst_P(dcs);
                     }
-                    this.term['inst_U']();
-                    if (code == 0x1b) {
-                        osc = '';
-                        params = '';
-                        collected = '';
-                        dcs = '';
-                        if (printed !== '') {
-                            this.term['inst_p'](printed);
-                            printed = '';
-                        }
+                    this.term.inst_U();
+                    if (code == 0x1b)
                         next_state = 1;
-                    }
+                    osc = '';
+                    params = '';
+                    collected = '';
+                    dcs = '';
                     break;
             }
             current_state = next_state;
         }
 
-        // push leftover pushable buffers to screen
-        if (printed !== '') {
-            this.term['inst_p'](printed);
-        } else if ((dcs !== '') && (current_state == 13)) {
-            this.term['inst_P'](dcs);
+        // push leftover pushable buffers to terminal
+        if (!current_state && printed) {
+                this.term.inst_p(printed);
+        } else if (current_state==13 && dcs) {
+                this.term.inst_P(dcs);
         }
 
         // save non pushable buffers
@@ -399,14 +390,12 @@
         this.current_state = current_state;
     };
 
-
+    /* istanbul ignore next */
     if (typeof module !== 'undefined' && typeof module['exports'] !== 'undefined') {
         module['exports'] = AnsiParser;
     } else {
         if (typeof define === 'function' && define['amd']) {
-            define([], function() {
-                return AnsiParser;
-            });
+            define([], function() {return AnsiParser;});
         } else {
             window['AnsiParser'] = AnsiParser;
         }

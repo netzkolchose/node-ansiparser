@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/netzkolchose/node-ansiparser/badge.svg?branch=master)](https://coveralls.io/r/netzkolchose/node-ansiparser?branch=master)
+
 A parser for ANSI escape code sequences. It implements the parser described here
 http://vt100.net/emu/dec_ansi_parser (thanks to Paul Williams).
 

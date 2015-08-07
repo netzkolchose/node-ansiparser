@@ -17,10 +17,13 @@
   "devDependencies": {
     "uglify-js": "2.4.24",
     "mocha": "latest",
-    "chai": "3.2.0"
+    "chai": "3.2.0",
+    "instanbul": "0.3.17",
+    "coveralls": "2.11.3"
   },
   "scripts": {
-    "test": "mocha test",
-    "minify": "node_modules/uglify-js/bin/uglifyjs --compress --mangle -- dist/ansiparser.js > dist/ansiparser.min.js"
+    "minify": "node_modules/uglify-js/bin/uglifyjs --compress --mangle -- dist/ansiparser.js > dist/ansiparser.min.js",
+    "test": "node_modules/istanbul/lib/cli.js cover node_modules/mocha/bin/_mocha -- -R spec",
+    "coveralls": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
   }
 }
