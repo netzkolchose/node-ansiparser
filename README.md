@@ -4,11 +4,13 @@
 A parser for ANSI escape code sequences. It implements the parser described here
 http://vt100.net/emu/dec_ansi_parser (thanks to Paul Williams).
 
+**NOTE ON UNICODE:** The parser works with unicode strings. High unicode characters (any above C1)
+are only allowed within the string consuming states GROUND (for print), OSC_STRING and DCS_PASSTHROUGH.
+At any other state they will either be ignored (CSI_IGNORE and DCS_IGNORE)
+or cancel the active escape sequence. Although this doesn't follow any official specification
+(since I haven't found any) it seems to work with unicode terminal streams.
+
 The parser uses callbacks to methods of a given terminal object.
-
-**NOTE:** If the terminal object doesnt provide the needed methods the parser
-will inject dummy methods to keep working.
-
 Methods a terminal should implement:
 
 * inst_p(s)                         *print string s*
@@ -16,9 +18,12 @@ Methods a terminal should implement:
 * inst_x(flag)                      *trigger one char method*
 * inst_c(collected, params, flag)   *trigger csi method*
 * inst_e(collected, flag)           *trigger esc method*
-* inst_H(collected, params, flag)   *dcs command*
+* inst_H(collected, params, flag)   *dcs command (hook)*
 * inst_P(data)                      *dcs put*
-* inst_U()                          *dcs leave*
+* inst_U()                          *dcs unhook*
+
+**NOTE:** If the terminal object doesn't provide the needed methods the parser
+will inject dummy methods to keep working.
 
 ## Methods
 
@@ -47,3 +52,8 @@ parser.parse('\x1b[31mHello World!\n');
 parser.parse('\x1bP0!u%5\x1b\'');
 ```
 For a more complex terminal see [node-ansiterminal](https://github.com/netzkolchose/node-ansiterminal).
+
+## Known Issues
+
+* DEL (0x7f) is not handled at all at the moment (basically making the parser only up to VT220 compatible).
+* No error propagation, all errors will silently reset the parser and continue with the next character.

@@ -1,4 +1,4 @@
-(function() {
+(function () {
     'use strict';
 
     /**
@@ -26,7 +26,7 @@
      * @param {number=} next - next state
      */
     function add(table, inp, state, action, next) {
-        table[state][inp] = [(action) ? action : 0, (next === undefined) ? state : next];
+        table[state][inp] = [action | 0, (next === undefined) ? state : next];
     }
 
     /**
@@ -39,7 +39,7 @@
      * @param {number=} next - next state
      */
     function add_list(table, inps, state, action, next) {
-        for (var i = 0; i < inps.length; i++)
+        for (var i=0; i<inps.length; i++)
             add(table, inps[i], state, action, next);
     }
 
@@ -215,7 +215,7 @@
         // 16 integer params max allowed
         // empty defaults to 0
         return params.split(';').slice(0, 16).map(
-            function (el) {return (el) ? parseInt(el, 10) : 0});
+            function (el) {return (el) ? parseInt(el, 10) : 0;});
     }
 
 
@@ -280,7 +280,7 @@
                     break;
                 case 1: // error
                     // NOTE: real error recovery is not implemented
-                    // handle high unicode chars in write buffers w'o state change
+                    // handle unicode chars in write buffers w'o state change
                     if (code > 0x9f) {
                         switch (current_state) {
                             case 0: // GROUND -> add char to print string
@@ -296,7 +296,7 @@
                             case 11: // DCS_IGNORE -> ignore char
                                 next_state = 11;
                                 break;
-                            case 13: // DCS_PASSTHROUGH -> add char to dcs string
+                            case 13: // DCS_PASSTHROUGH -> add char to dcs
                                 dcs += c;
                                 next_state = 13;
                                 break;
@@ -343,9 +343,9 @@
                     osc += c;
                     break;
                 case 6: // osc_end
-                    if (osc && code!=0x18 && code!=0x1a)
+                    if (osc && code!==0x18 && code!==0x1a)
                         this.term.inst_o(osc);
-                    if (code == 0x1b)
+                    if (code === 0x1b)
                         next_state = 1;
                     osc = '';
                     params = '';
@@ -363,7 +363,7 @@
                         this.term.inst_P(dcs);
                     }
                     this.term.inst_U();
-                    if (code == 0x1b)
+                    if (code === 0x1b)
                         next_state = 1;
                     osc = '';
                     params = '';
@@ -377,7 +377,7 @@
         // push leftover pushable buffers to terminal
         if (!current_state && printed) {
                 this.term.inst_p(printed);
-        } else if (current_state==13 && dcs) {
+        } else if (current_state===13 && dcs) {
                 this.term.inst_P(dcs);
         }
 
@@ -391,13 +391,14 @@
     };
 
     /* istanbul ignore next */
-    if (typeof module !== 'undefined' && typeof module['exports'] !== 'undefined') {
-        module['exports'] = AnsiParser;
+    if (typeof module !== 'undefined'
+        && typeof module.exports !== 'undefined') {
+        module.exports = AnsiParser;
     } else {
-        if (typeof define === 'function' && define['amd']) {
+        if (typeof define === 'function' && define.amd) {
             define([], function() {return AnsiParser;});
         } else {
-            window['AnsiParser'] = AnsiParser;
+            window.AnsiParser = AnsiParser;
         }
     }
 })();

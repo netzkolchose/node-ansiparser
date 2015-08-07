@@ -1,6 +1,6 @@
 {
   "name": "node-ansiparser",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A parser for ANSI escape codes.",
   "main": "dist/ansiparser.js",
   "keywords": [
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "uglify-js": "2.4.24",
-    "mocha": "latest",
+    "mocha": "2.2.5",
     "chai": "3.2.0",
     "istanbul": "0.3.17",
     "coveralls": "2.11.3"

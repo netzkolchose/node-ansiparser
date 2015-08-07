@@ -2,43 +2,44 @@ var chai = require('chai');
 var AnsiParser = require('../dist/ansiparser.js');
 
 function r(a, b) {
-    var c = b - a;
-    var arr = new Array(c);
-    while (c--)
+    var c = b - a,
+        arr = new Array(c);
+    while (c--) {
         arr[c] = String.fromCharCode(--b);
+    }
     return arr;
 }
 
 var test_terminal = {
     calls: [],
-    clear: function() {
-        this.calls = []
+    clear: function () {
+        this.calls = [];
     },
-    compare: function(value) {
-        chai.expect(this.calls.slice()).to.eql(value); // weird bug w'o slicing here
+    compare: function (value) {
+        chai.expect(this.calls.slice()).eql(value); // weird bug w'o slicing here
     },
-    inst_p: function(s) {
+    inst_p: function (s) {
         this.calls.push(['print', s]);
     },
-    inst_o: function(s) {
+    inst_o: function (s) {
         this.calls.push(['osc', s]);
     },
-    inst_x: function(flag) {
+    inst_x: function (flag) {
         this.calls.push(['exe', flag]);
     },
-    inst_c: function(collected, params, flag) {
+    inst_c: function (collected, params, flag) {
         this.calls.push(['csi', collected, params, flag]);
     },
-    inst_e: function(collected, flag) {
+    inst_e: function (collected, flag) {
         this.calls.push(['esc', collected, flag]);
     },
-    inst_H: function(collected, params, flag) {
+    inst_H: function (collected, params, flag) {
         this.calls.push(['dcs hook', collected, params, flag]);
     },
-    inst_P: function(dcs) {
+    inst_P: function (dcs) {
         this.calls.push(['dcs put', dcs]);
     },
-    inst_U: function() {
+    inst_U: function () {
         this.calls.push(['dcs unhook']);
     }
 };
@@ -48,15 +49,15 @@ var parser = new AnsiParser(test_terminal);
 describe('Parser init and methods', function() {
     it('parser init', function () {
         var p = new AnsiParser();
-        chai.expect(p.term).be.a('object');
-        chai.expect(p.term.inst_p).be.a('function');
-        chai.expect(p.term.inst_o).be.a('function');
-        chai.expect(p.term.inst_x).be.a('function');
-        chai.expect(p.term.inst_c).be.a('function');
-        chai.expect(p.term.inst_e).be.a('function');
-        chai.expect(p.term.inst_H).be.a('function');
-        chai.expect(p.term.inst_P).be.a('function');
-        chai.expect(p.term.inst_U).be.a('function');
+        chai.expect(p.term).a('object');
+        chai.expect(p.term.inst_p).a('function');
+        chai.expect(p.term.inst_o).a('function');
+        chai.expect(p.term.inst_x).a('function');
+        chai.expect(p.term.inst_c).a('function');
+        chai.expect(p.term.inst_e).a('function');
+        chai.expect(p.term.inst_H).a('function');
+        chai.expect(p.term.inst_P).a('function');
+        chai.expect(p.term.inst_U).a('function');
         p.parse('\x1b[31mHello World!');
     });
     it('terminal callbacks', function () {
