@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/netzkolchose/node-ansiparser.svg?branch=master)](https://travis-ci.org/netzkolchose/node-ansiparser)
 [![Coverage Status](https://coveralls.io/repos/netzkolchose/node-ansiparser/badge.svg?branch=master)](https://coveralls.io/r/netzkolchose/node-ansiparser?branch=master)
 
 A parser for ANSI escape code sequences. It implements the parser described here
