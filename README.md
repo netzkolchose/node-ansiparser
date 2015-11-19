@@ -22,6 +22,10 @@ Methods a terminal should implement:
 * inst_P(data)                      *dcs put*
 * inst_U()                          *dcs unhook*
 
+There is a new `inst_E(e)` callback to track internal parsing errors with `e` containing all internal
+parser states at error time. Additionally the parser will stop immediately if you return a value
+from this callback (probably with broken state - use `.reset` to fix the parser after investigation).
+
 **NOTE:** If the terminal object doesn't provide the needed methods the parser
 will inject dummy methods to keep working.
 
@@ -53,7 +57,10 @@ parser.parse('\x1bP0!u%5\x1b\'');
 ```
 For a more complex terminal see [node-ansiterminal](https://github.com/netzkolchose/node-ansiterminal).
 
-## Known Issues
 
-* DEL (0x7f) is not handled at all at the moment (basically making the parser only up to VT220 compatible).
-* No error propagation, all errors will silently reset the parser and continue with the next character.
+## Parser Throughput
+
+With  noop terminal functions the parser has a throughput of ~41 MB/s
+for normal terminal stuff like `ls -R /usr/lib` on my computer.
+For expensive tasks with many csi escape sequences the throughput drops to ~18 MB/s.
+That is 50-70% of the speed of a similar parser written in C (~65 MB/s and ~37 MB/s with same test data).

@@ -26,7 +26,7 @@
      * @param {number=} next - next state
      */
     function add(table, inp, state, action, next) {
-        table[state][inp] = [action | 0, (next === undefined) ? state : next];
+        table[state<<8|inp] = ((action | 0) << 4) | ((next === undefined) ? state : next);
     }
 
     /**
@@ -51,14 +51,15 @@
 
     /**
      * create the standard transition table - used by all parser instances
-     *     [state][character code] --> [action][next state]
+     *
+     *     table[state << 8 | character code] = action << 4 | next state
      *
      *     - states are numbers from 0 to 13
      *     - control character codes defined from 0 to 159 (C0 and C1)
      *     - actions are numbers from 0 to 14
      *     - any higher character than 159 is handled by the 'error' action
      *
-     *     states replacement:
+     *     state replacements (14 states):
      *          'GROUND' -> 0
      *          'ESCAPE' -> 1
      *          'ESCAPE_INTERMEDIATE' -> 2
@@ -74,7 +75,7 @@
      *          'DCS_INTERMEDIATE' -> 12
      *          'DCS_PASSTHROUGH' -> 13
      *
-     *     actions replacement:
+     *     action replacements (15 actions):
      *          'no action' -> 0
      *          'error' -> 1
      *          'print' -> 2
@@ -92,15 +93,14 @@
      *          'dcs_unhook' -> 14
      */
     var TRANSITION_TABLE = (function() {
-        var table = [];
+        //var table = [];
+        var table = new Uint8Array(4095);
 
-        // table with default transition [any][any] --> [error, GROUND]
+        // table with default transition [any] --> [error, GROUND]
         for (var state=0; state<14; ++state) {
-            var chars = [];
             for (var code=0; code<160; ++code) {
-                chars.push([1, 0]);
+                table[state<<8|code] = 16;
             }
-            table.push(chars);
         }
 
         // apply transitions
@@ -212,10 +212,12 @@
      */
     function parse_params(params) {
         // params are separated by ';'
-        // 16 integer params max allowed
         // empty defaults to 0
-        return params.split(';').slice(0, 16).map(
-            function (el) {return (el) ? parseInt(el, 10) : 0;});
+        var p = params.split(';');
+        for (var i=0; i<p.length; ++i) {
+            p[i] = Number(p[i]);
+        }
+        return p;
     }
 
 
@@ -237,7 +239,7 @@
         // back reference to terminal
         this.term = terminal || {};
         var instructions = ['inst_p', 'inst_o', 'inst_x', 'inst_c',
-            'inst_e', 'inst_H', 'inst_P', 'inst_U'];
+            'inst_e', 'inst_H', 'inst_P', 'inst_U', 'inst_E'];
         for (var i=0; i<instructions.length; ++i)
             if (!(instructions[i] in this.term))
                 this.term[instructions[i]] = function() {};
@@ -258,7 +260,7 @@
      * @param {string} s
      */
     AnsiParser.prototype.parse = function(s) {
-        var c, code, transition, action, next_state;
+        var c, code, transition, error = false;
         var current_state = this.current_state;
 
         // local buffers
@@ -269,13 +271,16 @@
         var params = this.params;
 
         // process input string
-        for (var i=0; i< s.length; ++i) {
+        for (var i=0; i<s.length; ++i) {
             c = s.charAt(i);
             code = c.charCodeAt(0);
-            transition = TRANSITION_TABLE[current_state][code] || [1, 0];
-            action = transition[0];
-            next_state = transition[1];
-            switch (action) {
+            if (code < 0xa0) {
+                transition = TRANSITION_TABLE[current_state<<8|code];
+            }
+            else {
+                transition = 16;
+            }
+            switch (transition >> 4) {
                 case 0: // no action
                     break;
                 case 1: // error
@@ -288,19 +293,37 @@
                                 break;
                             case 8: // OSC_STRING -> add char to osc string
                                 osc += c;
-                                next_state = 8;
+                                transition |= 8;
                                 break;
                             case 6: // CSI_IGNORE -> ignore char
-                                next_state = 6;
+                                transition |= 6;
                                 break;
                             case 11: // DCS_IGNORE -> ignore char
-                                next_state = 11;
+                                transition |= 11;
                                 break;
                             case 13: // DCS_PASSTHROUGH -> add char to dcs
                                 dcs += c;
-                                next_state = 13;
+                                transition |= 13;
                                 break;
+                            default:
+                                error = true;
                         }
+                    } else {
+                        error = true;
+                    }
+                    if (error) {
+                        if (this.term.inst_E(
+                                {
+                                    pos: i,                 // position in parse string
+                                    character: c,           // wrong character
+                                    state: current_state,   // in state
+                                    print: printed,         // print buffer
+                                    dcs: dcs,               // dcs buffer
+                                    osc: osc,               // osc buffer
+                                    collect: collected,     // collect buffer
+                                    params: params          // params buffer
+                                })) {return;}
+                        error = false;
                     }
                     break;
                 case 2: // print
@@ -346,7 +369,7 @@
                     if (osc && code!==0x18 && code!==0x1a)
                         this.term.inst_o(osc);
                     if (code === 0x1b)
-                        next_state = 1;
+                        transition |= 1;
                     osc = '';
                     params = '';
                     collected = '';
@@ -364,21 +387,21 @@
                     }
                     this.term.inst_U();
                     if (code === 0x1b)
-                        next_state = 1;
+                        transition |= 1;
                     osc = '';
                     params = '';
                     collected = '';
                     dcs = '';
                     break;
             }
-            current_state = next_state;
+            current_state = transition & 15;
         }
 
         // push leftover pushable buffers to terminal
         if (!current_state && printed) {
-                this.term.inst_p(printed);
+            this.term.inst_p(printed);
         } else if (current_state===13 && dcs) {
-                this.term.inst_P(dcs);
+            this.term.inst_P(dcs);
         }
 
         // save non pushable buffers

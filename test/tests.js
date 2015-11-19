@@ -1,5 +1,7 @@
-var chai = require('chai');
-var AnsiParser = require('../dist/ansiparser.js');
+if (typeof module !== 'undefined' && module.exports) {
+    var chai = require('chai');
+    var AnsiParser = require('../dist/ansiparser.js');
+}
 
 function r(a, b) {
     var c = b - a,
@@ -954,6 +956,59 @@ describe('coverage tests', function() {
         parser.parse('\x1e');
         chai.expect(parser.current_state).equal(0);
         test_terminal.compare([]);
+        parser.reset();
+        test_terminal.clear();
+    });
+});
+
+var ErrorTerminal1 = function(){};
+ErrorTerminal1.prototype = test_terminal;
+var err_terminal1 = new ErrorTerminal1();
+err_terminal1.inst_E = function(e) {
+        this.calls.push(['error', e]);
+    };
+var err_parser1 = new AnsiParser(err_terminal1);
+
+var ErrorTerminal2 = function(){};
+ErrorTerminal2.prototype = test_terminal;
+var err_terminal2 = new ErrorTerminal2();
+err_terminal2.inst_E = function(e) {
+        this.calls.push(['error', e]);
+        return true;  // --> abort parsing
+    };
+var err_parser2 = new AnsiParser(err_terminal2);
+
+describe('error tests', function() {
+    it('CSI_PARAM unicode error - inst_E output w/o abort', function () {
+        err_parser1.parse('\x1b[<31;5€normal print');
+        err_terminal1.compare([
+            ['error', {
+                pos: 7,
+                character: '€',
+                state: 4,
+                print: '',
+                dcs: '',
+                osc: '',
+                collect: '<',
+                params: '31;5'}],
+            ['print', 'normal print']
+        ]);
+        parser.reset();
+        test_terminal.clear();
+    });
+    it('CSI_PARAM unicode error - inst_E output with abort', function () {
+        err_parser2.parse('\x1b[<31;5€no print');
+        err_terminal2.compare([
+            ['error', {
+                pos: 7,
+                character: '€',
+                state: 4,
+                print: '',
+                dcs: '',
+                osc: '',
+                collect: '<',
+                params: '31;5'}]
+        ]);
         parser.reset();
         test_terminal.clear();
     });

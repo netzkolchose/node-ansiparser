@@ -1,12 +1,13 @@
 {
   "name": "node-ansiparser",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "A parser for ANSI escape codes.",
   "main": "dist/ansiparser.js",
   "keywords": [
     "ansi",
     "parser",
-    "terminal"
+    "terminal",
+    "escape sequence"
   ],
   "author": "Joerg Breitbart <j.breitbart@netzkolchose.de>",
   "license": "MIT",
