@@ -77,19 +77,19 @@ describe('Parser init and methods', function() {
         chai.expect(parser.initial_state).equal(0);
         chai.expect(parser.current_state).equal(0);
         chai.expect(parser.osc).equal('');
-        chai.expect(parser.params).equal('');
+        chai.expect(parser.params).eql([0]);
         chai.expect(parser.collected).equal('');
     });
     it('reset states', function () {
         parser.current_state = '#';
         parser.osc = '#';
-        parser.params = '#';
+        parser.params = [123];
         parser.collected = '#';
 
         parser.reset();
         chai.expect(parser.current_state).equal(0);
         chai.expect(parser.osc).equal('');
-        chai.expect(parser.params).equal('');
+        chai.expect(parser.params).eql([0]);
         chai.expect(parser.collected).equal('');
     });
 });
@@ -156,12 +156,12 @@ describe('state transitions and actions', function() {
         for (var state=0; state<14; ++state) {
             parser.current_state = state;
             parser.osc = '#';
-            parser.params = '#';
+            parser.params = [23];
             parser.collected = '#';
             parser.parse('\x1b');
             chai.expect(parser.current_state).equal(1);
             chai.expect(parser.osc).equal('');
-            chai.expect(parser.params).equal('');
+            chai.expect(parser.params).eql([0]);
             chai.expect(parser.collected).equal('');
             parser.reset();
         }
@@ -272,24 +272,24 @@ describe('state transitions and actions', function() {
         // C0
         parser.current_state = 1;
         parser.osc = '#';
-        parser.params = '#';
+        parser.params = [123];
         parser.collected = '#';
         parser.parse('[');
         chai.expect(parser.current_state).equal(3);
         chai.expect(parser.osc).equal('');
-        chai.expect(parser.params).equal('');
+        chai.expect(parser.params).eql([0]);
         chai.expect(parser.collected).equal('');
         parser.reset();
         // C1
         for (var state=0; state<14; ++state) {
             parser.current_state = state;
             parser.osc = '#';
-            parser.params = '#';
+            parser.params = [123];
             parser.collected = '#';
             parser.parse('\x9b');
             chai.expect(parser.current_state).equal(3);
             chai.expect(parser.osc).equal('');
-            chai.expect(parser.params).equal('');
+            chai.expect(parser.params).eql([0]);
             chai.expect(parser.collected).equal('');
             parser.reset();
         }
@@ -333,15 +333,21 @@ describe('state transitions and actions', function() {
     });
     it('trans CSI_ENTRY --> CSI_PARAM with param/collect actions', function () {
         parser.reset();
-        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39', '\x3b'];
+        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39'];
         var collect = ['\x3c', '\x3d', '\x3e', '\x3f'];
         for (var i=0; i<params.length; ++i) {
             parser.current_state = 3;
             parser.parse(params[i]);
             chai.expect(parser.current_state).equal(4);
-            chai.expect(parser.params).equal(params[i]);
+            chai.expect(parser.params).eql([params[i].charCodeAt(0)-48]);
             parser.reset();
         }
+        // ';'
+        parser.current_state = 3;
+        parser.parse('\x3b');
+        chai.expect(parser.current_state).equal(4);
+        chai.expect(parser.params).eql([0,0]);
+        parser.reset();
         for (i=0; i<collect.length; ++i) {
             parser.current_state = 3;
             parser.parse(collect[i]);
@@ -367,14 +373,19 @@ describe('state transitions and actions', function() {
     });
     it('state CSI_PARAM param action', function () {
         parser.reset();
-        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39', '\x3b'];
+        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39'];
         for (var i=0; i<params.length; ++i) {
             parser.current_state = 4;
             parser.parse(params[i]);
             chai.expect(parser.current_state).equal(4);
-            chai.expect(parser.params).equal(params[i]);
+            chai.expect(parser.params).eql([params[i].charCodeAt(0)-48]);
             parser.reset();
         }
+        parser.current_state = 4;
+        parser.parse('\x3b');
+        chai.expect(parser.current_state).equal(4);
+        chai.expect(parser.params).eql([0,0]);
+        parser.reset();
     });
     it('state CSI_PARAM ignore', function () {
         parser.reset();
@@ -391,7 +402,7 @@ describe('state transitions and actions', function() {
         var dispatches = r(0x40, 0x7f);
         for (var i=0; i<dispatches.length; ++i) {
             parser.current_state = 4;
-            parser.params = ';1';
+            parser.params = [0, 1];
             parser.parse(dispatches[i]);
             chai.expect(parser.current_state).equal(0);
             test_terminal.compare([['csi', '', [0, 1], dispatches[i]]]);
@@ -462,7 +473,7 @@ describe('state transitions and actions', function() {
         var dispatches = r(0x40, 0x7f);
         for (var i=0; i<dispatches.length; ++i) {
             parser.current_state = 5;
-            parser.params = ';1';
+            parser.params = [0,1];
             parser.parse(dispatches[i]);
             chai.expect(parser.current_state).equal(0);
             test_terminal.compare([['csi', '', [0, 1], dispatches[i]]]);
@@ -484,7 +495,7 @@ describe('state transitions and actions', function() {
             parser.current_state = 4;
             parser.parse('\x3b' + chars[i]);
             chai.expect(parser.current_state).equal(6);
-            chai.expect(parser.params).equal('\x3b');
+            chai.expect(parser.params).eql([0,0]);
             parser.reset();
         }
     });
@@ -495,7 +506,7 @@ describe('state transitions and actions', function() {
             parser.current_state = 5;
             parser.parse(chars[i]);
             chai.expect(parser.current_state).equal(6);
-            chai.expect(parser.params).equal('');
+            chai.expect(parser.params).eql([0]);
             parser.reset();
         }
     });
@@ -642,15 +653,20 @@ describe('state transitions and actions', function() {
     });
     it('state DCS_ENTRY --> DCS_PARAM with param/collect actions', function () {
         parser.reset();
-        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39', '\x3b'];
+        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39'];
         var collect = ['\x3c', '\x3d', '\x3e', '\x3f'];
         for (var i=0; i<params.length; ++i) {
             parser.current_state = 9;
             parser.parse(params[i]);
             chai.expect(parser.current_state).equal(10);
-            chai.expect(parser.params).equal(params[i]);
+            chai.expect(parser.params).eql([params[i].charCodeAt(0)-48]);
             parser.reset();
         }
+        parser.current_state = 9;
+        parser.parse('\x3b');
+        chai.expect(parser.current_state).equal(10);
+        chai.expect(parser.params).eql([0,0]);
+        parser.reset();
         for (i=0; i<collect.length; ++i) {
             parser.current_state = 9;
             parser.parse(collect[i]);
@@ -674,14 +690,19 @@ describe('state transitions and actions', function() {
     });
     it('state DCS_PARAM param action', function () {
         parser.reset();
-        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39', '\x3b'];
+        var params = ['\x30', '\x31', '\x32', '\x33', '\x34', '\x35', '\x36', '\x37', '\x38', '\x39'];
         for (var i=0; i<params.length; ++i) {
             parser.current_state = 10;
             parser.parse(params[i]);
             chai.expect(parser.current_state).equal(10);
-            chai.expect(parser.params).equal(params[i]);
+            chai.expect(parser.params).eql([params[i].charCodeAt(0)-48]);
             parser.reset();
         }
+        parser.current_state = 10;
+        parser.parse('\x3b');
+        chai.expect(parser.current_state).equal(10);
+        chai.expect(parser.params).eql([0,0]);
+        parser.reset();
     });
     it('trans DCS_ENTRY --> DCS_IGNORE', function () {
         parser.reset();
@@ -697,7 +718,7 @@ describe('state transitions and actions', function() {
             parser.current_state = 10;
             parser.parse('\x3b' + chars[i]);
             chai.expect(parser.current_state).equal(11);
-            chai.expect(parser.params).equal('\x3b');
+            chai.expect(parser.params).eql([0,0]);
             parser.reset();
         }
     });
@@ -900,7 +921,8 @@ describe('escape sequence examples', function() {
     });
     it('print + PM(C1) + print', function () {
         test('abc\x98123tzf\x9cdefg', [
-            ['print', 'abcdefg']
+            ['print', 'abc'],
+            ['print', 'defg']
         ]);
     });
     it('print + OSC(C1) + print', function () {
@@ -986,11 +1008,11 @@ describe('error tests', function() {
                 pos: 7,
                 character: '€',
                 state: 4,
-                print: '',
-                dcs: '',
+                print: -1,
+                dcs: -1,
                 osc: '',
                 collect: '<',
-                params: '31;5'}],
+                params: [31,5]}],
             ['print', 'normal print']
         ]);
         parser.reset();
@@ -1003,11 +1025,11 @@ describe('error tests', function() {
                 pos: 7,
                 character: '€',
                 state: 4,
-                print: '',
-                dcs: '',
+                print: -1,
+                dcs: -1,
                 osc: '',
                 collect: '<',
-                params: '31;5'}]
+                params: [31,5]}]
         ]);
         parser.reset();
         test_terminal.clear();
