@@ -47,7 +47,7 @@
     var PRINTABLES = r(0x20, 0x7f);
     var EXECUTABLES = r(0x00, 0x18);
     EXECUTABLES.push(0x19);
-    EXECUTABLES.concat(r(0x1c, 0x20));
+    EXECUTABLES = EXECUTABLES.concat(r(0x1c, 0x20));
 
     /* meaning of state and action indices
         var STATES = [
@@ -144,6 +144,7 @@
         add_list(t, [0x58, 0x5e, 0x5f], 1, 0, 7);
         add_list(t, PRINTABLES, 7);
         add_list(t, EXECUTABLES, 7);
+        add(t, 0x7f, 7);
         add(t, 0x9c, 7, 0, 0);
         // csi entries
         add(t, 0x5b, 1, 11, 3);

@@ -99,8 +99,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 0;
             parser.parse(exes[i]);
@@ -167,11 +167,12 @@ describe('state transitions and actions', function() {
         }
     });
     it('state ESCAPE execute rules', function () {
+        // also testing for #5
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 1;
             parser.parse(exes[i]);
@@ -195,9 +196,9 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var dispatches = r(0x30, 0x50);
-        dispatches.concat(r(0x51, 0x58));
-        dispatches.concat(['\x59', '\x5a', '\x5c']);
-        dispatches.concat(r(0x60, 0x7f));
+        dispatches = dispatches.concat(r(0x51, 0x58));
+        dispatches = dispatches.concat(['\x59', '\x5a', '\x5c']);
+        dispatches = dispatches.concat(r(0x60, 0x7f));
         for (var i=0; i<dispatches.length; ++i) {
             parser.current_state = 1;
             parser.parse(dispatches[i]);
@@ -222,8 +223,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 2;
             parser.parse(exes[i]);
@@ -298,8 +299,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 3;
             parser.parse(exes[i]);
@@ -360,8 +361,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 4;
             parser.parse(exes[i]);
@@ -436,8 +437,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 5;
             parser.parse(exes[i]);
@@ -514,8 +515,8 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var exes = r(0x00, 0x18);
-        exes.concat(['\x19']);
-        exes.concat(r(0x1c, 0x20));
+        exes = exes.concat(['\x19']);
+        exes = exes.concat(r(0x1c, 0x20));
         for (var i=0; i<exes.length; ++i) {
             parser.current_state = 6;
             parser.parse(exes[i]);
@@ -529,7 +530,7 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var ignored = r(0x20, 0x40);
-        ignored.concat(['\x7f']);
+        ignored = ignored.concat(['\x7f']);
         for (var i=0; i<ignored.length; ++i) {
             parser.current_state = 6;
             parser.parse(ignored[i]);
@@ -575,9 +576,9 @@ describe('state transitions and actions', function() {
     it('state SOS_PM_APC_STRING ignore rules', function () {
         parser.reset();
         var ignored = r(0x00, 0x18);
-        ignored.concat(['\x19']);
-        ignored.concat(r(0x1c, 0x20));
-        ignored.concat(r(0x20, 0x80));
+        ignored = ignored.concat(['\x19']);
+        ignored = ignored.concat(r(0x1c, 0x20));
+        ignored = ignored.concat(r(0x20, 0x80));
         for (var i=0; i<ignored.length; ++i) {
             parser.current_state = 7;
             parser.parse(ignored[i]);
@@ -738,7 +739,7 @@ describe('state transitions and actions', function() {
             '\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08',
             '\x09', '\x0a', '\x0b', '\x0c', '\x0d', '\x0e', '\x0f', '\x10', '\x11',
             '\x12', '\x13', '\x14', '\x15', '\x16', '\x17', '\x19', '\x1c', '\x1d', '\x1e', '\x1f', '\x7f'];
-        ignored.concat(r(0x20, 0x80));
+        ignored = ignored.concat(r(0x20, 0x80));
         for (var i=0; i<ignored.length; ++i) {
             parser.current_state = 11;
             parser.parse(ignored[i]);
@@ -846,9 +847,9 @@ describe('state transitions and actions', function() {
         parser.reset();
         test_terminal.clear();
         var puts = r(0x00, 0x18);
-        puts.concat(['\x19']);
-        puts.concat(r(0x1c, 0x20));
-        puts.concat(r(0x20, 0x7f));
+        puts = puts.concat(['\x19']);
+        puts = puts.concat(r(0x1c, 0x20));
+        puts = puts.concat(r(0x20, 0x7f));
         for (var i=0; i<puts.length; ++i) {
             parser.current_state = 13;
             parser.parse(puts[i]);
@@ -968,16 +969,6 @@ describe('coverage tests', function() {
         parser.parse('€öäü');
         chai.expect(parser.current_state).equal(13);
         test_terminal.compare([['dcs put', '€öäü']]);
-        parser.reset();
-        test_terminal.clear();
-    });
-    it('error else of if (code > 159)', function () {
-        parser.reset();
-        test_terminal.clear();
-        parser.current_state = 0;
-        parser.parse('\x1e');
-        chai.expect(parser.current_state).equal(0);
-        test_terminal.compare([]);
         parser.reset();
         test_terminal.clear();
     });
