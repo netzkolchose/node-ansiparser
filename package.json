@@ -1,6 +1,6 @@
 {
   "name": "node-ansiparser",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A parser for ANSI escape codes.",
   "main": "dist/ansiparser.js",
   "keywords": [
